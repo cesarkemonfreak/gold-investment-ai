@@ -13,7 +13,7 @@ st.title("📈 Gold Investment Timing AI")
 
 # --- LOAD GOLD PRICE DATA --- #
 st.subheader("Gold Price Tracker")
-gold_data = yf.download("GC=F", period="1y", interval="1d")
+gold_data = yf.download("GLD", period="1y", interval="1d")
 gold_data.reset_index(inplace=True)
 st.line_chart(gold_data.set_index("Date")["Close"], height=250)
 
