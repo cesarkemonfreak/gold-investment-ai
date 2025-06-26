@@ -19,15 +19,27 @@ st.line_chart(gold_data.set_index("Date")["Close"], height=250)
 
 # --- FORECASTING --- #
 st.subheader("Gold Price Forecast (30 Days)")
-df = gold_data[["Date", "Close"]].dropna()
-df = df.rename(columns={"Date": "ds", "Close": "y"})
-df["y"] = pd.to_numeric(df["y"], errors="coerce")
-df = df.dropna()
-m = Prophet(daily_seasonality=True)
-m.fit(df)
-future = m.make_future_dataframe(periods=30)
-forecast = m.predict(future)
-st.line_chart(forecast.set_index("ds")["yhat"].tail(60), height=250)
+
+try:
+    df = gold_data[["Date", "Close"]].dropna()
+    df = df.rename(columns={"Date": "ds", "Close": "y"})
+    
+    if df.empty or not pd.api.types.is_numeric_dtype(df["y"]):
+        raise ValueError("Gold price data is not valid.")
+
+    df["y"] = pd.to_numeric(df["y"], errors="coerce")
+    df = df.dropna()
+
+    m = Prophet(daily_seasonality=True)
+    m.fit(df)
+    future = m.make_future_dataframe(periods=30)
+    forecast = m.predict(future)
+
+    st.line_chart(forecast.set_index("ds")["yhat"].tail(60), height=250)
+
+except Exception as e:
+    st.error("⚠️ Unable to generate forecast. Reason: {}".format(str(e)))
+
 
 # --- NEWS SENTIMENT --- #
 st.subheader("Latest News Sentiment on Gold")
