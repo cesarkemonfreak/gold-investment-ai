@@ -4,3 +4,4 @@ prophet
 transformers
 beautifulsoup4
 requests
+torch
