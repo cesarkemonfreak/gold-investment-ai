@@ -1,0 +1,6 @@
+streamlit
+yfinance
+prophet
+transformers
+beautifulsoup4
+requests
