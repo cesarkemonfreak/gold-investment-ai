@@ -19,11 +19,10 @@ st.line_chart(gold_data.set_index("Date")["Close"], height=250)
 
 # --- FORECASTING --- #
 st.subheader("Gold Price Forecast (30 Days)")
-
 try:
     df = gold_data[["Date", "Close"]].dropna()
     df = df.rename(columns={"Date": "ds", "Close": "y"})
-    
+
     if df.empty or not pd.api.types.is_numeric_dtype(df["y"]):
         raise ValueError("Gold price data is not valid.")
 
@@ -39,7 +38,6 @@ try:
 
 except Exception as e:
     st.error("⚠️ Unable to generate forecast. Reason: {}".format(str(e)))
-
 
 # --- NEWS SENTIMENT --- #
 st.subheader("Latest News Sentiment on Gold")
@@ -67,22 +65,7 @@ for title, label, score in scores:
 # --- SIGNAL GENERATOR --- #
 st.subheader("📊 Market Signal")
 
-last_price = gold_data["Close"].iloc[-1]
-predicted_price = forecast["yhat"].iloc[-1]
-delta = predicted_price - last_price
-
-average_sentiment = sum([s[2] if s[1] == 'POSITIVE' else -s[2] for s in scores]) / len(scores) if scores else 0
-
-signal = "Hold"
-if delta > 20 and average_sentiment > 0.2:
-    signal = "Strong Buy"
-elif delta > 10 and average_sentiment > 0:
-    signal = "Buy"
-elif delta < -10:
-    signal = "Sell"
-
-st.metric("Suggested Action", signal)
-
-# --- FOOTER --- #
-st.markdown("---")
-st.markdown("Built by your AI assistant. Powered by Yahoo Finance, Prophet, and BERT.")
+try:
+    last_price = gold_data["Close"].iloc[-1]
+    predicted_price = forecast["yhat"].iloc[-1]
+    delt
