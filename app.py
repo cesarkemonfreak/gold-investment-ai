@@ -1,0 +1,73 @@
+import streamlit as st
+import yfinance as yf
+import pandas as pd
+from prophet import Prophet
+from transformers import pipeline
+from datetime import datetime, timedelta
+import requests
+from bs4 import BeautifulSoup
+
+# --- TITLE --- #
+st.set_page_config(page_title="Gold Investment AI", layout="wide")
+st.title("📈 Gold Investment Timing AI")
+
+# --- LOAD GOLD PRICE DATA --- #
+st.subheader("Gold Price Tracker")
+gold_data = yf.download("GC=F", period="1y", interval="1d")
+gold_data.reset_index(inplace=True)
+st.line_chart(gold_data.set_index("Date")["Close"], height=250)
+
+# --- FORECASTING --- #
+st.subheader("Gold Price Forecast (30 Days)")
+df = gold_data[["Date", "Close"]].rename(columns={"Date": "ds", "Close": "y"})
+m = Prophet(daily_seasonality=True)
+m.fit(df)
+future = m.make_future_dataframe(periods=30)
+forecast = m.predict(future)
+st.line_chart(forecast.set_index("ds")["yhat"].tail(60), height=250)
+
+# --- NEWS SENTIMENT --- #
+st.subheader("Latest News Sentiment on Gold")
+@st.cache_data(ttl=3600)
+def fetch_news():
+    url = "https://www.reuters.com/markets/commodities/"
+    r = requests.get(url)
+    soup = BeautifulSoup(r.content, "html.parser")
+    headlines = soup.find_all("h3")
+    gold_articles = [h.text.strip() for h in headlines if "gold" in h.text.lower()]
+    return gold_articles[:5]
+
+news = fetch_news()
+sentiment_pipeline = pipeline("sentiment-analysis")
+scores = []
+
+for article in news:
+    result = sentiment_pipeline(article)[0]
+    scores.append((article, result['label'], result['score']))
+
+for title, label, score in scores:
+    st.markdown(f"**{title}**")
+    st.write(f"Sentiment: {label} (Confidence: {round(score*100, 2)}%)")
+
+# --- SIGNAL GENERATOR --- #
+st.subheader("📊 Market Signal")
+
+last_price = gold_data["Close"].iloc[-1]
+predicted_price = forecast["yhat"].iloc[-1]
+delta = predicted_price - last_price
+
+average_sentiment = sum([s[2] if s[1] == 'POSITIVE' else -s[2] for s in scores]) / len(scores) if scores else 0
+
+signal = "Hold"
+if delta > 20 and average_sentiment > 0.2:
+    signal = "Strong Buy"
+elif delta > 10 and average_sentiment > 0:
+    signal = "Buy"
+elif delta < -10:
+    signal = "Sell"
+
+st.metric("Suggested Action", signal)
+
+# --- FOOTER --- #
+st.markdown("---")
+st.markdown("Built by your AI assistant. Powered by Yahoo Finance, Prophet, and BERT.")
