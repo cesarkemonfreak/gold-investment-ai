@@ -19,7 +19,10 @@ st.line_chart(gold_data.set_index("Date")["Close"], height=250)
 
 # --- FORECASTING --- #
 st.subheader("Gold Price Forecast (30 Days)")
-df = gold_data[["Date", "Close"]].rename(columns={"Date": "ds", "Close": "y"})
+df = gold_data[["Date", "Close"]].dropna()
+df = df.rename(columns={"Date": "ds", "Close": "y"})
+df["y"] = pd.to_numeric(df["y"], errors="coerce")
+df = df.dropna()
 m = Prophet(daily_seasonality=True)
 m.fit(df)
 future = m.make_future_dataframe(periods=30)
