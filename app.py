@@ -71,5 +71,51 @@ except Exception as e:
 st.subheader("Latest News Sentiment on Gold")
 
 @st.cache_data(ttl=3600)
-def fetch_news():_
+def fetch_news():
+    url = "https://www.reuters.com/markets/commodities/"
+    r = requests.get(url)
+    soup = BeautifulSoup(r.content, "html.parser")
+    headlines = soup.find_all("h3")
+    return [h.text.strip() for h in headlines if "gold" in h.text.lower()][:5]
+
+news = fetch_news()
+sentiment_pipeline = pipeline("sentiment-analysis")
+scores = []
+
+for article in news:
+    result = sentiment_pipeline(article)[0]
+    scores.append((article, result['label'], result['score']))
+
+for title, label, score in scores:
+    st.markdown(f"**{title}**")
+    st.write(f"Sentiment: {label} (Confidence: {round(score*100, 2)}%)")
+
+# --- MARKET SIGNAL --- #
+st.subheader("📊 Market Signal")
+
+try:
+    last_price = gold_data["Close"].iloc[-1]
+    predicted_price = forecast["yhat"].iloc[-1] if forecast is not None else last_price
+    delta = predicted_price - last_price
+
+    average_sentiment = sum(
+        [s[2] if s[1] == 'POSITIVE' else -s[2] for s in scores]
+    ) / len(scores) if scores else 0
+
+    signal = "Hold"
+    if delta > 20 and average_sentiment > 0.2:
+        signal = "Strong Buy"
+    elif delta > 10 and average_sentiment > 0:
+        signal = "Buy"
+    elif delta < -10:
+        signal = "Sell"
+
+    st.metric("Suggested Action", signal)
+except Exception as e:
+    st.warning(f"Could not calculate signal: {str(e)}")
+
+# --- FOOTER --- #
+st.markdown("---")
+st.markdown("Built with ❤️ using MetalpriceAPI, Prophet, and BERT.")
+
 
