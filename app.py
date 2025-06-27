@@ -48,15 +48,6 @@ except Exception as e:
 # --- FORECASTING --- #
 st.subheader("Gold Price Forecast (30 Days)")
 
+forecast = None
 try:
-    df = gold_data[["Date", "Close"]].rename(columns={"Date": "ds", "Close": "y"})
-    df["y"] = pd.to_numeric(df["y"], errors="coerce")
-    df = df.dropna()
-
-    if df.empty:
-        raise ValueError("Gold price data is empty or invalid")
-
-    m = Prophet(daily_seasonality=True)
-    m.fit(df)
-    future = m.make_future_dataframe(periods=30)
-    forecast = m.predict(future)
+    df = gold_data[["Date", "Close"]].rename(columns={"_
