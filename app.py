@@ -1,89 +1,62 @@
 import streamlit as st
-import yfinance as yf
+import requests
 import pandas as pd
 from prophet import Prophet
 from transformers import pipeline
 from datetime import datetime, timedelta
-import requests
 from bs4 import BeautifulSoup
 
-# --- TITLE --- #
+# --- CONFIGURATION --- #
+API_KEY = "aa7d12d1a4bfc5b669fe4f61b872c11d"
+
+# --- PAGE TITLE --- #
 st.set_page_config(page_title="Gold Investment AI", layout="wide")
 st.title("📈 Gold Investment Timing AI")
 
-# --- LOAD GOLD PRICE DATA --- #
+# --- FETCH GOLD PRICE DATA --- #
 st.subheader("Gold Price Tracker")
-gold_data = yf.download("GLD", period="1y", interval="1d")
-gold_data.reset_index(inplace=True)
-st.line_chart(gold_data.set_index("Date")["Close"], height=250)
+
+@st.cache_data(ttl=3600)
+def fetch_gold_prices():
+    end_date = datetime.today().date()
+    start_date = end_date - timedelta(days=365)
+    url = (
+        f"https://api.metalpriceapi.com/v1/timeframe?"
+        f"api_key={API_KEY}&start_date={start_date}&end_date={end_date}&base=XAU&currencies=USD"
+    )
+    r = requests.get(url)
+    data = r.json()
+    if "error" in data:
+        raise ValueError("API Error: " + data["error"]["message"])
+    
+    prices = data["rates"]
+    df = pd.DataFrame([
+        {"Date": date, "Close": 1 / float(info["USD"])}
+        for date, info in prices.items() if "USD" in info and info["USD"] != 0
+    ])
+    df["Date"] = pd.to_datetime(df["Date"])
+    df.sort_values("Date", inplace=True)
+    return df
+
+try:
+    gold_data = fetch_gold_prices()
+    st.line_chart(gold_data.set_index("Date")["Close"], height=250)
+except Exception as e:
+    st.error(f"⚠️ Failed to fetch gold data: {e}")
+    gold_data = pd.DataFrame()
 
 # --- FORECASTING --- #
 st.subheader("Gold Price Forecast (30 Days)")
+
 try:
-    df = gold_data[["Date", "Close"]].dropna()
-    df = df.rename(columns={"Date": "ds", "Close": "y"})
-
-    if df.empty or not pd.api.types.is_numeric_dtype(df["y"]):
-        raise ValueError("Gold price data is not valid.")
-
+    df = gold_data[["Date", "Close"]].rename(columns={"Date": "ds", "Close": "y"})
     df["y"] = pd.to_numeric(df["y"], errors="coerce")
     df = df.dropna()
+
+    if df.empty:
+        raise ValueError("Gold price data is empty or invalid")
 
     m = Prophet(daily_seasonality=True)
     m.fit(df)
     future = m.make_future_dataframe(periods=30)
     forecast = m.predict(future)
-
-    st.line_chart(forecast.set_index("ds")["yhat"].tail(60), height=250)
-
-except Exception as e:
-    st.error("⚠️ Unable to generate forecast. Reason: {}".format(str(e)))
-
-# --- NEWS SENTIMENT --- #
-st.subheader("Latest News Sentiment on Gold")
-@st.cache_data(ttl=3600)
-def fetch_news():
-    url = "https://www.reuters.com/markets/commodities/"
-    r = requests.get(url)
-    soup = BeautifulSoup(r.content, "html.parser")
-    headlines = soup.find_all("h3")
-    gold_articles = [h.text.strip() for h in headlines if "gold" in h.text.lower()]
-    return gold_articles[:5]
-
-news = fetch_news()
-sentiment_pipeline = pipeline("sentiment-analysis")
-scores = []
-
-for article in news:
-    result = sentiment_pipeline(article)[0]
-    scores.append((article, result['label'], result['score']))
-
-for title, label, score in scores:
-    st.markdown(f"**{title}**")
-    st.write(f"Sentiment: {label} (Confidence: {round(score*100, 2)}%)")
-
-# --- SIGNAL GENERATOR --- #
-st.subheader("📊 Market Signal")
-
-try:
-    last_price = gold_data["Close"].iloc[-1]
-    predicted_price = forecast["yhat"].iloc[-1]
-    delta = predicted_price - last_price
-
-    average_sentiment = sum(
-        [s[2] if s[1] == 'POSITIVE' else -s[2] for s in scores]
-    ) / len(scores) if scores else 0
-
-    signal = "Hold"
-    if delta > 20 and average_sentiment > 0.2:
-        signal = "Strong Buy"
-    elif delta > 10 and average_sentiment > 0:
-        signal = "Buy"
-    elif delta < -10:
-        signal = "Sell"
-
-    st.metric("Suggested Action", signal)
-
-except Exception as e:
-    st.warning(f"Could not calculate signal: {str(e)}")
-
