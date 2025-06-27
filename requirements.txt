@@ -1,7 +1,7 @@
 streamlit
-yfinance
+requests
+pandas
 prophet
 transformers
 beautifulsoup4
-requests
 torch
